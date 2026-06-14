@@ -2,8 +2,6 @@ import {
   PKMN_BLANK,
   PKMN_MASTER,
   PKMN_SLAVE,
-  PKMN_CONNECTED,
-  PKMN_TRADE_CENTRE,
   PKMN_BREAK_LINK,
   TRADE_CENTRE_WAIT,
   TRADE_SLOT_1,
@@ -16,6 +14,7 @@ import {
   resolveTid,
   resolveMove,
 } from './gen2_constants.js';
+import { Gen2CableClubAutoSelect } from './gen2_cable_club.js';
 
 const NAME_LEN = 11;
 const PARTY_HEADER_LEN = 8;
@@ -31,15 +30,9 @@ const PATCH_DATA_START = 7;
 const MAIL_BLOCK_LEN = 385;
 const PATCH_SCAN_START = NAME_LEN + PARTY_HEADER_LEN;
 
-const PKMN_CONNECTED_GEN2 = 0x61;
-
-function isCableClubIdleByte(byte) {
-  return byte === PKMN_BLANK || byte === 0xff || byte === PKMN_SLAVE;
-}
-
 const ConnectionState = {
   NOT_CONNECTED: 'NOT_CONNECTED',
-  CONNECTED: 'CONNECTED',
+  CABLE_CLUB: 'CABLE_CLUB',
   TRADE_CENTRE: 'TRADE_CENTRE',
 };
 
@@ -199,22 +192,40 @@ export class Gen2Trader {
     this.dataBlock = dataBlock;
     this.patchBlock = patchBlock;
     this.mailBlock = mailBlock;
-    this.inputBlock = new Uint8Array(DATA_BLOCK_LEN);
+    this.cableClub = new Gen2CableClubAutoSelect({
+      onPhase: (phase) => this.setPhase(phase),
+      onReady: () => this.enterTradeCentre(),
+    });
     this.reset();
   }
 
   reset() {
-    this.connectionState = ConnectionState.NOT_CONNECTED;
     this.tradeState = TradeState.INIT;
     this.tradeCounter = 0;
+    this.tradePokemon = -1;
+    this.tradeAccepted = false;
     this.uiPhase = 'idle';
+    this.beginCableClub();
   }
 
   reopenCableClub() {
-    this.connectionState = ConnectionState.NOT_CONNECTED;
     this.tradeState = TradeState.INIT;
     this.tradeCounter = 0;
+    this.tradePokemon = -1;
+    this.tradeAccepted = false;
+    this.beginCableClub();
     this.setPhase('menu_cancelled');
+  }
+
+  beginCableClub() {
+    this.connectionState = ConnectionState.CABLE_CLUB;
+    this.cableClub.reset();
+  }
+
+  enterTradeCentre() {
+    this.connectionState = ConnectionState.TRADE_CENTRE;
+    this.tradeState = TradeState.INIT;
+    this.setPhase('waiting_cable_club');
   }
 
   setEvent(event) {
@@ -226,68 +237,37 @@ export class Gen2Trader {
     this.mailBlock = mailBlock;
   }
 
+  linkIdleOutByte() {
+    if (this.connectionState === ConnectionState.CABLE_CLUB) {
+      return this.cableClub.outboundByte();
+    }
+    return PKMN_MASTER;
+  }
+
+  linkPollDelayMs(inLinkSetup) {
+    if (!inLinkSetup) return 4;
+    if (this.connectionState === ConnectionState.CABLE_CLUB && this.cableClub.step === 0) {
+      return 2;
+    }
+    return 8;
+  }
+
   handleByte(inputByte) {
     let out = PKMN_MASTER;
 
     switch (this.connectionState) {
       case ConnectionState.NOT_CONNECTED:
-        switch (inputByte) {
-          case PKMN_BLANK:
-            out = PKMN_BLANK;
-            break;
-          case PKMN_BREAK_LINK:
-            out = PKMN_BREAK_LINK;
-            this.reopenCableClub();
-            break;
-          case PKMN_MASTER:
-            out = PKMN_MASTER;
-            break;
-          case PKMN_SLAVE:
-            this.connectionState = ConnectionState.CONNECTED;
-            out = PKMN_MASTER;
-            this.setPhase('connected');
-            break;
-          case PKMN_CONNECTED:
-          case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x6f:
-            this.connectionState = ConnectionState.CONNECTED;
-            out = PKMN_CONNECTED;
-            this.setPhase('connected');
-            break;
-          default:
-            out = PKMN_MASTER;
-            break;
-        }
+        this.beginCableClub();
+        out = this.cableClub.exchange(inputByte);
         break;
 
-      case ConnectionState.CONNECTED:
-        switch (inputByte) {
-          case PKMN_CONNECTED_GEN2:
-            out = PKMN_TRADE_CENTRE;
-            this.connectionState = ConnectionState.TRADE_CENTRE;
-            this.tradeState = TradeState.INIT;
-            this.setPhase('waiting_cable_club');
-            break;
-          case PKMN_CONNECTED:
-            out = PKMN_CONNECTED;
-            break;
-          case PKMN_TRADE_CENTRE:
-            out = PKMN_TRADE_CENTRE;
-            this.connectionState = ConnectionState.TRADE_CENTRE;
-            this.tradeState = TradeState.INIT;
-            this.setPhase('waiting_cable_club');
-            break;
-          case PKMN_BREAK_LINK:
-            out = PKMN_BREAK_LINK;
-            this.reopenCableClub();
-            break;
-          default:
-            if (isCableClubIdleByte(inputByte)) {
-              out = PKMN_MASTER;
-            } else {
-              out = inputByte;
-            }
-            break;
+      case ConnectionState.CABLE_CLUB:
+        if (inputByte === PKMN_BREAK_LINK) {
+          out = PKMN_BREAK_LINK;
+          this.reopenCableClub();
+          break;
         }
+        out = this.cableClub.exchange(inputByte);
         break;
 
       case ConnectionState.TRADE_CENTRE:
@@ -308,11 +288,20 @@ export class Gen2Trader {
   }
 
   handleTradeCentre(inputByte) {
+    if (this.uiPhase === 'complete') {
+      return inputByte;
+    }
+
     let out = inputByte;
 
     switch (this.tradeState) {
       case TradeState.INIT:
-        if (inputByte === 0x00) {
+        if (inputByte === PKMN_MASTER || inputByte === PKMN_SLAVE) {
+          this.beginCableClub();
+          out = PKMN_MASTER;
+        } else if ((inputByte & 0xf0) === 0xd0) {
+          out = inputByte;
+        } else if (inputByte === 0x00) {
           this.tradeCounter = 0;
           this.tradeState = TradeState.READY;
           out = 0x00;
@@ -327,7 +316,6 @@ export class Gen2Trader {
         if (inputByte === TRADE_CENTRE_WAIT) {
           this.tradeState = TradeState.DETECTED;
           out = TRADE_CENTRE_WAIT;
-          this.setPhase('handshaking');
         }
         break;
 
@@ -353,7 +341,6 @@ export class Gen2Trader {
           out = 0x00;
         } else {
           out = this.dataBlock[0];
-          this.inputBlock[0] = inputByte;
           this.tradeState = TradeState.DATA_TX;
           this.tradeCounter = 1;
           this.setPhase('data_exchange');
@@ -362,7 +349,6 @@ export class Gen2Trader {
 
       case TradeState.DATA_TX:
         out = this.dataBlock[this.tradeCounter];
-        this.inputBlock[this.tradeCounter] = inputByte;
         this.tradeCounter++;
         if (this.tradeCounter === DATA_BLOCK_LEN) {
           this.tradeState = TradeState.DATA_TX_PATCH;
@@ -394,7 +380,12 @@ export class Gen2Trader {
           this.tradeCounter++;
           if (this.tradeCounter === MAIL_BLOCK_LEN) {
             this.tradeState = TradeState.TRADE_WAIT;
-            this.setPhase('trade_selection');
+            this.tradePokemon = -1;
+            if (this.tradeAccepted) {
+              this.setPhase('post_trade_party');
+            } else {
+              this.setPhase('trade_selection');
+            }
           }
         }
         break;
@@ -407,10 +398,13 @@ export class Gen2Trader {
         } else if (inputByte >= TRADE_SLOT_1 && inputByte <= TRADE_SLOT_LAST) {
           out = TRADE_SLOT_1;
           this.tradePokemon = inputByte - TRADE_SLOT_1;
+          this.setPhase('trade_selection');
         } else if (inputByte === 0x00) {
           out = 0x00;
-          this.tradeState = TradeState.TRADE_DONE;
-          this.setPhase('trade_confirm');
+          if (this.tradePokemon >= 0) {
+            this.tradeState = TradeState.TRADE_DONE;
+            this.setPhase('trade_confirm');
+          }
         }
         break;
 
@@ -423,6 +417,7 @@ export class Gen2Trader {
         } else if (inputByte === TRADE_ACCEPT) {
           out = TRADE_ACCEPT;
           this.tradeState = TradeState.DONE;
+          this.tradeAccepted = true;
           this.setPhase('trading');
         }
         break;
@@ -430,7 +425,6 @@ export class Gen2Trader {
       case TradeState.DONE:
         if (inputByte === 0x00 && this.uiPhase === 'trading') {
           out = 0x00;
-          this.setPhase('complete');
           this.tradeState = TradeState.INIT;
         }
         break;
@@ -443,6 +437,8 @@ export class Gen2Trader {
   }
 
   setPhase(phase) {
+    if (this.uiPhase === 'complete') return;
+    if (this.uiPhase === 'trading' && phase !== 'post_trade_party') return;
     if (this.uiPhase !== phase) {
       this.uiPhase = phase;
       this.onPhaseChange(phase);

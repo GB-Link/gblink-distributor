@@ -1,4 +1,11 @@
 import { saveCertificateImage } from './certificate_export.js';
+import mewSprite from '../assets/sprites/mew.png';
+import celebiSprite from '../assets/sprites/celebi.png';
+
+const SPECIES_SPRITES = {
+  MEW: mewSprite,
+  CELEBI: celebiSprite,
+};
 
 function speciesThemeFor(speciesKey) {
   const k = speciesKey.toUpperCase();
@@ -7,14 +14,10 @@ function speciesThemeFor(speciesKey) {
   return 'default';
 }
 
-export function formatSpeciesName(key) {
+function formatSpeciesName(key) {
   if (!key) return '—';
   const lower = key.toLowerCase().replace(/_/g, ' ');
   return lower.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-export function formatSpeciesForIdLine(key) {
-  return formatSpeciesName(key);
 }
 
 function formatCertificateTrainerId(tid) {
@@ -149,13 +152,23 @@ export function renderCertificate(container, data) {
   const brandMark = document.createElement('p');
   brandMark.className = 'certificate-brand-mark';
   brandMark.setAttribute('aria-hidden', 'true');
-  brandMark.textContent = 'GB Link';
+  brandMark.textContent = 'GB-Link';
 
-  const speciesDisplay = document.createElement('p');
-  speciesDisplay.className = 'certificate-species-display';
-  speciesDisplay.textContent = formatSpeciesName(data.species);
-
-  artSpace.append(brandMark, speciesDisplay);
+  const speciesKey = data.species?.toUpperCase() ?? '';
+  const spriteSrc = SPECIES_SPRITES[speciesKey];
+  if (spriteSrc) {
+    const sprite = document.createElement('img');
+    sprite.className = 'certificate-species-sprite';
+    sprite.src = spriteSrc;
+    sprite.alt = formatSpeciesName(data.species);
+    sprite.decoding = 'async';
+    artSpace.append(brandMark, sprite);
+  } else {
+    const speciesDisplay = document.createElement('p');
+    speciesDisplay.className = 'certificate-species-display';
+    speciesDisplay.textContent = formatSpeciesName(data.species);
+    artSpace.append(brandMark, speciesDisplay);
+  }
 
   const idLine = document.createElement('p');
   idLine.className = 'certificate-id-line';
@@ -166,7 +179,7 @@ export function renderCertificate(container, data) {
 
   const speciesSpan = document.createElement('span');
   speciesSpan.className = 'certificate-id-species';
-  speciesSpan.textContent = formatSpeciesForIdLine(data.species);
+  speciesSpan.textContent = formatSpeciesName(data.species);
 
   const idMid = document.createElement('span');
   idMid.className = 'certificate-id-mid';
@@ -181,7 +194,7 @@ export function renderCertificate(container, data) {
   const meta = document.createElement('p');
   meta.className = 'certificate-meta';
   meta.append(
-    document.createTextNode(`OT ${data.otName} · ${data.eventLabel} · GB Link — `),
+    document.createTextNode(`OT ${data.otName} · ${data.eventLabel} · GB-Link — `),
   );
   const siteLink = document.createElement('a');
   siteLink.className = 'certificate-meta-link';
@@ -209,7 +222,6 @@ export function renderCertificate(container, data) {
     try {
       await saveCertificateImage(frame, data);
     } catch (err) {
-      console.error('[certificate] save failed:', err);
       saveBtn.textContent = 'Download failed — retry';
       saveBtn.disabled = false;
       return;

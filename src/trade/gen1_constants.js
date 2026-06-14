@@ -1,10 +1,7 @@
 export const PKMN_BLANK = 0x00;
 export const PKMN_MASTER = 0x01;
-export const PKMN_SLAVE = 0x02;
 export const PKMN_CONNECTED = 0x60;
 export const ITEM_1_HIGHLIGHTED = 0xd0;
-export const ITEM_2_HIGHLIGHTED = 0xd1;
-export const ITEM_3_HIGHLIGHTED = 0xd2;
 export const PKMN_TRADE_CENTRE = 0xd4;
 export const PKMN_BREAK_LINK = 0xd6;
 export const TRADE_CENTRE_WAIT = 0xfd;
@@ -14,7 +11,6 @@ export const TRADE_DECLINE = 0x61;
 export const TRADE_ACCEPT = 0x62;
 export const TRADE_CANCEL_SELECT = 0x6f;
 export const STOP_BYTE = 0x50;
-export const NULL_POKEMON = 0xff;
 
 export const SPECIES = {
   MEW: 0x15,

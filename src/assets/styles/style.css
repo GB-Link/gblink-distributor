@@ -87,6 +87,8 @@ header h1 {
 
 .picker-section {
   margin-bottom: 0;
+  --surface: #13111c;
+  --border: #231f35;
 }
 
 .distribution-picker {
@@ -125,6 +127,21 @@ header h1 {
   pointer-events: none;
 }
 
+.distribution-option-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 5.5rem;
+  margin: -0.1rem 0 0.15rem;
+}
+
+.distribution-option-sprite {
+  display: block;
+  width: 5.25rem;
+  height: 5.25rem;
+  object-fit: contain;
+}
+
 .distribution-option-body {
   display: flex;
   flex-direction: column;
@@ -153,12 +170,22 @@ header h1 {
   letter-spacing: 0.01em;
 }
 
-.distribution-option[data-line-theme='mew'] .distribution-option-title {
+.distribution-option[data-line-theme='mew'] input:checked + .distribution-option-body .distribution-option-title {
   color: color-mix(in srgb, var(--mew-accent) 65%, var(--text));
 }
 
-.distribution-option[data-line-theme='celebi'] .distribution-option-title {
+.distribution-option[data-line-theme='celebi'] input:checked + .distribution-option-body .distribution-option-title {
   color: color-mix(in srgb, var(--celebi-accent) 65%, var(--text));
+}
+
+.distribution-option input:not(:checked) + .distribution-option-body {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.distribution-option input:not(:checked) + .distribution-option-body .distribution-option-title {
+  color: var(--text);
 }
 
 .distribution-option[data-line-theme='mew'] input:checked + .distribution-option-body {
@@ -405,6 +432,7 @@ header h1 {
 #instruction-text {
   color: var(--text);
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .instruction-box[data-type='success'] {
@@ -413,6 +441,15 @@ header h1 {
 }
 
 .instruction-box[data-type='success'] .instruction-label { color: var(--success); }
+
+.app[data-theme] .instruction-box[data-type='success'] {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.app[data-theme] .instruction-box[data-type='success'] .instruction-label {
+  color: var(--accent);
+}
 
 .actions {
   display: flex;
@@ -491,10 +528,10 @@ button.secondary:hover:not(:disabled) {
   position: relative;
   z-index: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  align-items: stretch;
-  min-height: 14rem;
-  padding: 0.4rem 0.85rem 0.65rem;
+  grid-template-rows: auto minmax(12rem, 1fr) auto auto;
+  align-items: center;
+  min-height: 17rem;
+  padding: 0.35rem 0.85rem 0.65rem;
   background: linear-gradient(180deg, #fffef9 0%, #f8f6f0 100%);
   border-radius: 4px;
   color: #1a1a1a;
@@ -530,9 +567,12 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 7rem;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  min-height: 12rem;
   margin: 0;
-  padding: 0.25rem 0;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -551,6 +591,17 @@ button.secondary:hover:not(:disabled) {
   transform: rotate(-11deg);
   pointer-events: none;
   user-select: none;
+}
+
+.certificate-species-sprite {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: min(100%, 11.25rem);
+  height: min(100%, 11.25rem);
+  max-width: 11.25rem;
+  max-height: 11.25rem;
+  object-fit: contain;
 }
 
 .certificate-species-display {

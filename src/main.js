@@ -1,9 +1,5 @@
 import * as gblink from './link/gblink.js';
 import { createTrader, eventGeneration } from './trade/trade_engine.js';
-import {
-  deferUntilAnimationEnd,
-  TradeTimingRecorder,
-} from './trade/trade_timing.js';
 import { getEventsForGeneration, getEventById } from './events/index.js';
 import { DISTRIBUTION_LINES, getDistributionLine } from './catalog/distribution_catalog.js';
 import {
@@ -34,17 +30,6 @@ let reloadingForDisconnect = false;
 let selectedLineId = null;
 let selectedEventId = '';
 
-const tradeTiming = new TradeTimingRecorder();
-let tradeAnimationStartedAt = 0;
-let cancelCompleteDefer = null;
-const showTradeTimingDetail = (() => {
-  try {
-    return new URLSearchParams(window.location.search).get('tradeTiming') === '1';
-  } catch {
-    return false;
-  }
-})();
-
 const PHASE_CONFIG = {
   idle: {
     step: -1,
@@ -61,7 +46,7 @@ const PHASE_CONFIG = {
   connecting: {
     step: 0,
     message: 'Connecting to adapter…',
-    instruction: 'Select your GB Link adapter when the browser asks for device access.',
+    instruction: 'Select your GB-Link adapter when the browser asks for device access.',
     type: 'active',
   },
   connected: {
@@ -108,8 +93,8 @@ const PHASE_CONFIG = {
   },
   trading: {
     step: 3,
-    message: 'Trade in progress…',
-    instruction: 'Wait for the trade to finish on your Game Boy.',
+    message: 'Waiting for trade on Game Boy',
+    instruction: 'The trade is running on your Game Boy — wait for the animation to finish.',
     type: 'active',
   },
   trade_cancelled: {
@@ -121,7 +106,7 @@ const PHASE_CONFIG = {
   complete: {
     step: 4,
     message: 'Trade complete!',
-    instruction: 'Check your party — your event Pokémon has been delivered.',
+    instruction: 'You can disconnect the adapter and Game Boy now. Check your party — your event Pokémon has been delivered.\nIf you are using a flash cart: press Cancel, open the Start menu, select Exit, then Reset, Continue from main menu, then Save.',
     type: 'success',
   },
   error: {
@@ -167,7 +152,6 @@ function updateStepper(activeStep) {
 
 function setStatus(phase, detail = '') {
   currentPhase = phase;
-  updateTimingCalibrationButton();
   const cfg = PHASE_CONFIG[phase] ?? PHASE_CONFIG.idle;
 
   statusText.textContent = cfg.message;
@@ -210,10 +194,6 @@ function gameLabelForGeneration(generation) {
   return generation === 2 ? 'GSC' : 'RBY';
 }
 
-function groupOf(ev) {
-  return regionOf(ev.label);
-}
-
 function setWorkflowVisible(visible) {
   workflow.classList.toggle('hidden', !visible);
 }
@@ -236,76 +216,22 @@ function showIssuedCertificate(event, trainerId) {
   renderCertificate(certificateMount, issuedForTrade(event, trainerId));
 }
 
-function clearCompleteDefer() {
-  if (cancelCompleteDefer) {
-    cancelCompleteDefer();
-    cancelCompleteDefer = null;
-  }
-}
-
 function reloadForAdapterDisconnect() {
   if (reloadingForDisconnect) return;
   reloadingForDisconnect = true;
   polling = false;
-  clearCompleteDefer();
   window.location.reload();
 }
 
 gblink.onAdapterDisconnect(reloadForAdapterDisconnect);
 
 function finishTradeComplete(event, trainerId) {
-  tradeTiming.markUiComplete();
-  hideTimingCalibrationButton();
-  const genNum = eventGeneration(event);
-  const report = tradeTiming.buildReport(genNum);
-  if (report) {
-    console.info('[trade-timing]', tradeTiming.formatReport(report), report);
-  }
-
-  const gen = genNum === 2 ? 'GSC' : 'RBY';
-  const detail = showTradeTimingDetail && report
-    ? `${event.label} · OT ${event.otName} · ${gen} · ${tradeTiming.formatReport(report)}`
-    : `${event.label} · OT ${event.otName} · ${gen}`;
-  setStatus('complete', detail);
+  const gen = eventGeneration(event) === 2 ? 'GSC' : 'RBY';
+  setStatus('complete', `${event.label} · OT ${event.otName} · ${gen}`);
   lockPickers(false);
   if (trainerId != null) {
     showIssuedCertificate(event, trainerId);
   }
-}
-
-let timingCalibrationBtn = null;
-
-function ensureTimingCalibrationButton() {
-  if (!showTradeTimingDetail || timingCalibrationBtn) return;
-  timingCalibrationBtn = document.createElement('button');
-  timingCalibrationBtn.type = 'button';
-  timingCalibrationBtn.id = 'timing-calibration-btn';
-  timingCalibrationBtn.className = 'secondary hidden';
-  timingCalibrationBtn.textContent = 'GB animation finished (calibrate timing)';
-  timingCalibrationBtn.addEventListener('click', () => {
-    const genNum = eventGeneration(getSelectedEvent());
-    const sample = tradeTiming.markManualAnimationEnd();
-    if (!sample) return;
-    console.info(
-      '[trade-timing] Manual calibration — set TRADE_ANIMATION_MS[%s] = %s (observed %sms)',
-      genNum,
-      sample.suggestedMs,
-      sample.durationMs,
-    );
-    detailText.textContent =
-      `Calibrated: GB animation ${sample.durationMs}ms · suggest TRADE_ANIMATION_MS[${genNum}] = ${sample.suggestedMs}`;
-  });
-  document.querySelector('.actions')?.appendChild(timingCalibrationBtn);
-}
-
-function updateTimingCalibrationButton() {
-  ensureTimingCalibrationButton();
-  if (!timingCalibrationBtn) return;
-  timingCalibrationBtn.classList.toggle('hidden', currentPhase !== 'trading');
-}
-
-function hideTimingCalibrationButton() {
-  timingCalibrationBtn?.classList.add('hidden');
 }
 
 function populateDistributionPicker() {
@@ -323,6 +249,15 @@ function populateDistributionPicker() {
     const body = document.createElement('span');
     body.className = 'distribution-option-body';
 
+    const art = document.createElement('span');
+    art.className = 'distribution-option-art';
+    const img = document.createElement('img');
+    img.className = 'distribution-option-sprite';
+    img.src = line.sprite;
+    img.alt = '';
+    img.decoding = 'async';
+    art.append(img);
+
     const title = document.createElement('span');
     title.className = 'distribution-option-title';
     title.textContent = line.label;
@@ -331,7 +266,7 @@ function populateDistributionPicker() {
     hint.className = 'distribution-option-hint';
     hint.textContent = line.hint;
 
-    body.append(title, hint);
+    body.append(art, title, hint);
     label.append(input, body);
     distributionOptions.appendChild(label);
   }
@@ -348,7 +283,7 @@ function populateEventSelect() {
 
   const groups = new Map();
   for (const ev of events) {
-    const key = groupOf(ev);
+    const key = regionOf(ev.label);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(ev);
   }
@@ -387,6 +322,10 @@ function onDistributionLineChange(lineId) {
   const line = getDistributionLine(lineId);
   if (!line) return;
 
+  for (const input of distributionPicker.querySelectorAll('input[type="radio"]')) {
+    input.checked = input.value === lineId;
+  }
+
   selectedLineId = lineId;
   applyDistributionTheme(line.theme);
   setWorkflowVisible(true);
@@ -408,43 +347,27 @@ function ensureTrader() {
   const phaseHandler = {
     onPhaseChange: (phase) => {
       if (!gblink.isConnected()) return;
+      if (currentPhase === 'complete') return;
 
       const ev = getSelectedEvent();
       const genNum = eventGeneration(ev);
       const gen = genNum === 2 ? 'GSC' : 'RBY';
       const detail = `${ev.label} · OT ${ev.otName} · ${gen}`;
 
-      tradeTiming.mark(phase);
-
-      if (phase === 'trading') {
-        tradeAnimationStartedAt = performance.now();
-        updateTimingCalibrationButton();
-      }
-
-      if (phase === 'menu_cancelled') {
-        clearCompleteDefer();
-        tradeAnimationStartedAt = 0;
-        hideCertificate();
-        setStatus(phase, detail);
-        lockPickers(false);
+      if (phase === 'post_trade_party') {
+        finishTradeComplete(ev, trader?.tid);
+        if (trader) trader.uiPhase = 'complete';
         return;
       }
 
-      if (phase === 'complete') {
-        const tid = trader?.tid;
-        clearCompleteDefer();
-        if (genNum === 1) {
-          finishTradeComplete(ev, tid);
-        } else {
-          cancelCompleteDefer = deferUntilAnimationEnd(
-            genNum,
-            tradeAnimationStartedAt,
-            () => {
-              cancelCompleteDefer = null;
-              finishTradeComplete(ev, tid);
-            },
-          );
-        }
+      if (phase === 'trading') {
+        hideCertificate();
+      }
+
+      if (phase === 'menu_cancelled') {
+        hideCertificate();
+        setStatus(phase, detail);
+        lockPickers(false);
         return;
       }
 
@@ -467,23 +390,28 @@ async function pollLoop() {
   polling = true;
   const t = ensureTrader();
 
-  let toSend = 0x01;
+  let toSend = typeof t.linkIdleOutByte === 'function' ? t.linkIdleOutByte() : 0x01;
 
   while (polling && gblink.isConnected()) {
     try {
       const inLinkSetup = t.connectionState === 'NOT_CONNECTED'
-        || t.connectionState === 'CABLE_CLUB';
-      await sleep(inLinkSetup ? 1 : 4);
+        || t.connectionState === 'CABLE_CLUB'
+        || t.connectionState === 'CONNECTED';
+      const pollDelay = typeof t.linkPollDelayMs === 'function'
+        ? t.linkPollDelayMs(inLinkSetup)
+        : (inLinkSetup ? 1 : 4);
+      await sleep(pollDelay);
+
+      if (inLinkSetup && typeof t.linkIdleOutByte === 'function') {
+        toSend = t.linkIdleOutByte();
+      }
 
       await gblink.sendByte(toSend);
       const received = await gblink.receiveByte();
       if (!polling) break;
 
       if (received !== null) {
-        if (received === 0xff && inLinkSetup) continue;
         toSend = t.handleByte(received);
-      } else if (inLinkSetup && typeof t.linkIdleOutByte === 'function') {
-        toSend = t.linkIdleOutByte();
       }
     } catch (err) {
       if (!polling) break;
@@ -491,7 +419,6 @@ async function pollLoop() {
         reloadForAdapterDisconnect();
         break;
       }
-      console.warn('[trade] poll error:', err);
       await sleep(50);
       toSend = 0x01;
     }
@@ -513,15 +440,14 @@ async function onConnect() {
   }
   try {
     hideCertificate();
-    clearCompleteDefer();
-    tradeTiming.reset();
-    tradeAnimationStartedAt = 0;
+    polling = false;
     lockPickers(true);
     setStatus('connecting');
     connectBtn.disabled = true;
     await gblink.connect();
+    trader = null;
     ensureTrader();
-    tradeTiming.startSession(eventGeneration(getSelectedEvent()));
+    trader.reset();
     disconnectBtn.disabled = false;
     const ev = getSelectedEvent();
     const gen = eventGeneration(ev) === 2 ? 'GSC' : 'RBY';
@@ -566,7 +492,7 @@ function mountLauncherReturn() {
   const a = document.createElement('a');
   a.id = 'gblink-launcher-return';
   a.href = 'https://launcher.gblink.io';
-  a.setAttribute('aria-label', 'Return to the GB Link launcher');
+  a.setAttribute('aria-label', 'Return to the GB-Link launcher');
   a.innerHTML =
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
     ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +

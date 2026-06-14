@@ -274,14 +274,13 @@ function runSerialReadLoop(conn) {
     } catch (err) {
       if (active === conn) {
         if (isLinkLostError(err)) notifyAdapterDisconnect();
-        else console.warn('[gblink] serial read error:', err);
       }
     }
   })();
 }
 
 async function writeSerialFrame(conn, channel, payload) {
-  if (!conn.writer) throw new Error('GB Link not connected.');
+  if (!conn.writer) throw new Error('GB-Link not connected.');
   if (payload.length > SERIAL_MAX_PAYLOAD) throw new Error('Serial payload too large');
   const frame = new Uint8Array(5 + payload.length);
   frame[0] = SERIAL_SYNC0;
@@ -358,7 +357,7 @@ export async function disconnect() {
 }
 
 export async function sendByte(byte) {
-  if (!active) throw new Error('GB Link not connected.');
+  if (!active) throw new Error('GB-Link not connected.');
   try {
     if (active.kind === 'usb') {
       await active.device.transferOut(active.epOut, new Uint8Array([byte & 0xff]));
@@ -402,7 +401,6 @@ export function receiveByte() {
           notifyAdapterDisconnect();
           return null;
         }
-        console.warn('[gblink] transferIn error:', err);
         return null;
       });
 
@@ -421,7 +419,6 @@ export function receiveByte() {
         notifyAdapterDisconnect();
         return null;
       }
-      console.warn('[gblink] serial receive error:', err);
       return null;
     });
 
