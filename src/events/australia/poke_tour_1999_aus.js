@@ -1,9 +1,9 @@
 export default {
-  id: 'australia-poke-tour-1999',
-  label: 'Australia — Poké Tour Mew: NALAUS (Sep–Oct 1999)',
+  id: 'australia-poke-tour-1999-aus',
+  label: 'Australia — Poké Tour Mew: AUS (Sep–Oct 1999, Blue Tour)',
 
-  otName: 'NALAUS',
-  trainerName: 'NALAUS',
+  otName: 'AUS',
+  trainerName: 'AUS',
   tidMode: 'random',
   tid: null,
 
