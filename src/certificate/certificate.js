@@ -1,15 +1,18 @@
 import { saveCertificateImage } from './certificate_export.js';
 import mewSprite from '../assets/sprites/mew.png';
+import pikachuSprite from '../assets/sprites/pikachu.png';
 import celebiSprite from '../assets/sprites/celebi.png';
 
 const SPECIES_SPRITES = {
   MEW: mewSprite,
+  PIKACHU: pikachuSprite,
   CELEBI: celebiSprite,
 };
 
 function speciesThemeFor(speciesKey) {
   const k = speciesKey.toUpperCase();
   if (k === 'MEW') return 'mew';
+  if (k === 'PIKACHU') return 'pikachu';
   if (k === 'CELEBI') return 'celebi';
   return 'default';
 }

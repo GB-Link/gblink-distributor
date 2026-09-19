@@ -17,6 +17,8 @@
 
   --mew-accent:       #f472b6;
   --mew-accent-hover: #f9a8d4;
+  --pikachu-accent:    #f7d02c;
+  --pikachu-accent-hover: #ffe566;
   --celebi-accent:    #7ac74c;
   --celebi-accent-hover: #9dde62;
 
@@ -30,6 +32,15 @@
   --surface-hi:   #261a29;
   --border:       #3a2640;
   --border-hi:    #4e3356;
+}
+
+.app[data-theme='pikachu'] {
+  --accent:       var(--pikachu-accent);
+  --accent-hover: var(--pikachu-accent-hover);
+  --surface:      #1c1810;
+  --surface-hi:   #272011;
+  --border:       #3d3420;
+  --border-hi:    #554728;
 }
 
 .app[data-theme='celebi'] {
@@ -174,6 +185,10 @@ header h1 {
   color: color-mix(in srgb, var(--mew-accent) 65%, var(--text));
 }
 
+.distribution-option[data-line-theme='pikachu'] input:checked + .distribution-option-body .distribution-option-title {
+  color: color-mix(in srgb, var(--pikachu-accent) 65%, var(--text));
+}
+
 .distribution-option[data-line-theme='celebi'] input:checked + .distribution-option-body .distribution-option-title {
   color: color-mix(in srgb, var(--celebi-accent) 65%, var(--text));
 }
@@ -193,6 +208,13 @@ header h1 {
   background: color-mix(in srgb, var(--mew-accent) 10%, var(--surface));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--mew-accent) 30%, transparent),
               0 4px 16px color-mix(in srgb, var(--mew-accent) 12%, transparent);
+}
+
+.distribution-option[data-line-theme='pikachu'] input:checked + .distribution-option-body {
+  border-color: var(--pikachu-accent);
+  background: color-mix(in srgb, var(--pikachu-accent) 10%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pikachu-accent) 30%, transparent),
+              0 4px 16px color-mix(in srgb, var(--pikachu-accent) 12%, transparent);
 }
 
 .distribution-option[data-line-theme='celebi'] input:checked + .distribution-option-body {
@@ -624,6 +646,14 @@ button.secondary:hover:not(:disabled) {
   background-clip: text;
   color: transparent;
   -webkit-text-stroke-color: #5c2d4a;
+}
+
+.certificate-card[data-species-theme='pikachu'] .certificate-species-display {
+  background: linear-gradient(180deg, #fff4a8 0%, #f7d02c 45%, #e2a81a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke-color: #5c4a12;
 }
 
 .certificate-card[data-species-theme='celebi'] .certificate-species-display {

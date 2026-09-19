@@ -1,6 +1,6 @@
 import * as gblink from './link/gblink.js';
 import { createTrader, eventGeneration } from './trade/trade_engine.js';
-import { getEventsForGeneration, getEventById } from './events/index.js';
+import { getEventsForLine, getEventById } from './events/index.js';
 import { DISTRIBUTION_LINES, getDistributionLine } from './catalog/distribution_catalog.js';
 import {
   issuedForTrade,
@@ -187,7 +187,7 @@ function selectedLine() {
 function eventsForSelectedLine() {
   const line = selectedLine();
   if (!line) return [];
-  return getEventsForGeneration(line.generation);
+  return getEventsForLine(line);
 }
 
 function gameLabelForGeneration(generation) {

@@ -20,6 +20,8 @@ export const SPECIES = {
 
 export const MOVES = {
   POUND: 0x01,
+  GROWL: 0x2d,
+  THUNDER_SHOCK: 0x54,
   SURF: 0x39,
   FLY: 0x13,
   TELEPORT: 0x64,
@@ -36,6 +38,8 @@ export const TYPES = {
 
 export const MOVE_PP = {
   POUND: 35,
+  GROWL: 40,
+  THUNDER_SHOCK: 30,
   SURF: 15,
   FLY: 15,
   TELEPORT: 20,
@@ -133,8 +137,8 @@ export function calcStats(event) {
     hpIv,
     ivs,
     experience: event.experience ?? experienceForLevel(level),
-    type1: event.type1 ?? TYPES.PSYCHIC_TYPE,
-    type2: event.type2 ?? event.type1 ?? TYPES.PSYCHIC_TYPE,
+    type1: TYPES[event.type1] ?? event.type1 ?? TYPES.PSYCHIC_TYPE,
+    type2: TYPES[event.type2] ?? event.type2 ?? TYPES[event.type1] ?? TYPES.PSYCHIC_TYPE,
   };
 }
 
@@ -142,7 +146,11 @@ export function resolveTid(event) {
   if (event.tidMode === 'fixed' && event.tid != null) {
     return event.tid & 0xffff;
   }
-  return Math.floor(Math.random() * 65535) + 1;
+  const cap = event.tidMax ?? 0;
+  if (cap > 0) {
+    return Math.floor(Math.random() * cap) & 0xffff;
+  }
+  return Math.floor(Math.random() * 65536) & 0xffff;
 }
 
 export function resolveMove(moveKey) {
