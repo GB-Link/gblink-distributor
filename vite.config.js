@@ -1,10 +1,27 @@
 import path from 'path';
 import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
+import { extractGen3English } from './scripts/extract-gen3-english.mjs';
 import { generateEventsRegistry } from './scripts/generate-events-registry.mjs';
 
 function eventsRegistryPlugin() {
   let root;
+
+  async function syncEvents() {
+    await extractGen3English(root);
+    await generateEventsRegistry(root);
+  }
+
+  let regenTimer;
+
+  function scheduleRegen(server) {
+    clearTimeout(regenTimer);
+    regenTimer = setTimeout(() => {
+      regen(server).catch((err) => {
+        console.error(err instanceof Error ? err.message : err);
+      });
+    }, 300);
+  }
 
   async function regen(server) {
     await generateEventsRegistry(root);
@@ -22,13 +39,13 @@ function eventsRegistryPlugin() {
       root = config.root;
     },
     async buildStart() {
-      await generateEventsRegistry(root);
+      await syncEvents();
     },
     configureServer(server) {
       const onEventChange = (file) => {
         if (!file.includes(`${path.sep}src${path.sep}events${path.sep}`)) return;
         if (file.endsWith(`${path.sep}registry.js`)) return;
-        regen(server);
+        scheduleRegen(server);
       };
       server.watcher.on('change', onEventChange);
       server.watcher.on('add', onEventChange);

@@ -1,4 +1,5 @@
 import * as gblink from './link/gblink.js';
+import { loadClient, sendMultiboot } from './link/gba_multiboot.js';
 import { createTrader, eventGeneration } from './trade/trade_engine.js';
 import { getEventsForLine, getEventById } from './events/index.js';
 import { DISTRIBUTION_LINES, getDistributionLine } from './catalog/distribution_catalog.js';
@@ -9,7 +10,10 @@ import {
 
 const distributionPicker = document.getElementById('distribution-picker');
 const distributionOptions = document.getElementById('distribution-options');
+const methodPicker = document.getElementById('method-picker');
+const methodSource = document.getElementById('method-source');
 const eventSelect = document.getElementById('event-select');
+const eventPossibilities = document.getElementById('event-possibilities');
 const statusText = document.getElementById('status-text');
 const detailText = document.getElementById('detail-text');
 const statusIndicator = document.getElementById('status-indicator');
@@ -29,6 +33,12 @@ let polling = false;
 let reloadingForDisconnect = false;
 let selectedLineId = null;
 let selectedEventId = '';
+let selectedMethod = 'trade';
+
+function readSelectedMethod() {
+  const checked = methodPicker.querySelector('input[name="gen3-method"]:checked');
+  return checked?.value === 'multiboot' ? 'multiboot' : 'trade';
+}
 
 const PHASE_CONFIG = {
   idle: {
@@ -64,7 +74,7 @@ const PHASE_CONFIG = {
   handshaking: {
     step: 1,
     message: 'Link handshake in progress…',
-    instruction: 'Your Game Boy is in the Cable Club. Wait at the Cable Club reception — do not press anything.',
+    instruction: 'Talk to the trade attendant. Stay on this page — the same connection continues into the trade room.',
     type: 'active',
   },
   waiting_cable_club: {
@@ -82,7 +92,7 @@ const PHASE_CONFIG = {
   trade_selection: {
     step: 3,
     message: 'Select a Pokémon on your Game Boy',
-    instruction: 'Choose any Pokémon from your party. The distributor will send you the event Pokémon in return.',
+    instruction: 'Choose any Pokémon from your party and select Trade. The partner party is the event Pokémon.',
     type: 'active',
   },
   trade_confirm: {
@@ -106,7 +116,7 @@ const PHASE_CONFIG = {
   complete: {
     step: 4,
     message: 'Trade complete!',
-    instruction: 'You can disconnect the adapter and Game Boy now. Check your party — your event Pokémon has been delivered.\nIf you are using a flash cart: press Cancel, open the Start menu, select Exit, then Reset, Continue from main menu, then Save.',
+    instruction: 'Check your party — your event Pokémon has been delivered. You can sit at the trade counter again for another, leave the Cable Club and start over, or disconnect when you are done.\nIf you are using a flash cart: press Cancel, open the Start menu, select Exit, then Reset, Continue from main menu, then Save.',
     type: 'success',
   },
   error: {
@@ -150,26 +160,99 @@ function updateStepper(activeStep) {
   });
 }
 
+const GEN3_BOOT = {
+  idle: {
+    message: 'Ready to send a multiboot distribution',
+    instruction: 'Save in a Pokémon Center with at least one empty party slot. Leave the game cartridge in, then turn the Game Boy Advance off.',
+  },
+  connected: {
+    message: 'Adapter connected — power on the Game Boy Advance',
+    instruction: 'Plug the purple end of the link cable into the adapter. Hold Start and Select, then turn the Game Boy Advance on. The cartridge stays in, and the normal Nintendo logo should not appear.',
+    step: 1,
+  },
+  sending: {
+    message: 'Sending the distribution…',
+    instruction: 'Keep the Game Boy Advance on and leave the cartridge in. A colored Nintendo logo means the distribution is loading.',
+    step: 1,
+  },
+  receiving: {
+    message: 'The Pokémon is being received',
+    instruction: 'Wait on this screen. The Pokémon is saved onto the cartridge already in the Game Boy Advance when its sprite appears.',
+    step: 2,
+  },
+  complete: {
+    message: 'Distribution sent',
+    instruction: 'Check your party. The Pokémon is on the cartridge that was inserted the whole time. You can turn the Game Boy Advance off and disconnect the adapter.',
+    step: 4,
+  },
+};
+
+const GEN3_TRADE = {
+  idle: {
+    message: 'Ready to trade',
+    instruction: 'Go to a Pokémon Center 2F and enter the Cable Club.\n\nFireRed/LeafGreen: Celio’s Network Machine on One Island (postgame) is required.\n\nEmerald: National Pokédex required before Mew or Deoxys will trade.',
+  },
+  connected: {
+    message: 'Adapter connected — waiting at the Cable Club',
+    instruction: 'Connect here first, then talk to the trade attendant on Pokémon Center 2F. In the trade room, sit at a counter.\n\nFireRed/LeafGreen: Celio’s Network Machine on One Island (postgame) is required.\n\nEmerald: National Pokédex required before Mew or Deoxys will trade.',
+  },
+  waiting_cable_club: {
+    message: 'Walking to a seat',
+    instruction: 'The partner is taking a seat. Sit at the other counter. Please wait clears when you are both seated.',
+    step: 2,
+  },
+  trade_cancelled: {
+    message: 'Trade cancelled — back at Trade Center',
+    instruction: 'Sit at the trade counter again whenever you are ready. Leave the room and talk to the attendant to start a fresh Cable Club session — keep the adapter connected.',
+    step: 2,
+  },
+  complete: {
+    message: 'Trade complete!',
+    instruction: 'Check your party — your event Pokémon has been delivered. Sit at the counter again for another, leave and re-enter the Cable Club, or disconnect when you are done.\nIf you are using a flash cart: press Cancel, open the Start menu, select Exit, then Reset, Continue from main menu, then Save.',
+    step: 4,
+  },
+};
+
+function isGen3() {
+  return selectedLine()?.generation === 3;
+}
+
+function gen3Method() {
+  return isGen3() && selectedMethod === 'multiboot' ? 'multiboot' : 'trade';
+}
+
+function applyStepperMode() {
+  const boot = isGen3() && selectedMethod === 'multiboot';
+  stepper.dataset.method = boot ? 'multiboot' : 'trade';
+  for (const label of stepper.querySelectorAll('.step-label')) {
+    label.textContent = label.dataset[boot ? 'boot' : 'trade'];
+  }
+  methodSource.classList.toggle('hidden', !boot);
+}
+
 function setStatus(phase, detail = '') {
   currentPhase = phase;
   const cfg = PHASE_CONFIG[phase] ?? PHASE_CONFIG.idle;
+  const override = isGen3()
+    ? (selectedMethod === 'multiboot' ? GEN3_BOOT[phase] : GEN3_TRADE[phase])
+    : null;
 
-  statusText.textContent = cfg.message;
+  statusText.textContent = override?.message ?? cfg.message;
   statusText.dataset.type = cfg.type;
-
   statusIndicator.dataset.type = cfg.type;
-
   detailText.textContent = detail;
 
-  if (cfg.instruction) {
+  const instruction = override?.instruction ?? cfg.instruction;
+  if (instruction) {
     instructionBox.classList.remove('hidden');
     instructionBox.dataset.type = cfg.type === 'success' ? 'success' : 'default';
-    instructionText.textContent = cfg.instruction;
+    instructionText.textContent = instruction;
   } else {
     instructionBox.classList.add('hidden');
   }
 
-  updateStepper(cfg.step);
+  applyStepperMode();
+  updateStepper(override?.step ?? cfg.step);
 }
 
 const REGION_PREFIX_RE =
@@ -178,6 +261,21 @@ const REGION_PREFIX_RE =
 function regionOf(label) {
   const m = label.match(REGION_PREFIX_RE);
   return m ? m[1] : 'Other';
+}
+
+function eventOptionLabel(ev) {
+  const title = ev.label.replace(REGION_PREFIX_RE, '').replace(/^English\s*—\s*/, '');
+  return ev.variants?.length > 1 ? `${title} (Random)` : title;
+}
+
+function variantNames(ev) {
+  return (ev.variants ?? []).map((variant) => variant.speciesLabel || variant.species).filter(Boolean);
+}
+
+function formatNameList(names) {
+  if (names.length < 2) return names[0] ?? '';
+  if (names.length === 2) return `${names[0]} or ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, or ${names[names.length - 1]}`;
 }
 
 function selectedLine() {
@@ -191,7 +289,15 @@ function eventsForSelectedLine() {
 }
 
 function gameLabelForGeneration(generation) {
+  if (generation === 3) return 'RSE / FRLG';
   return generation === 2 ? 'GSC' : 'RBY';
+}
+
+function statusDetailFor(event, traderInstance) {
+  const gen = gameLabelForGeneration(eventGeneration(event));
+  const partner = traderInstance?.partnerGameName;
+  const game = partner ?? gen;
+  return `${event.label} · OT ${event.otName} · ${game}`;
 }
 
 function setWorkflowVisible(visible) {
@@ -226,12 +332,11 @@ function reloadForAdapterDisconnect() {
 gblink.onAdapterDisconnect(reloadForAdapterDisconnect);
 
 function finishTradeComplete(event, trainerId) {
-  const gen = eventGeneration(event) === 2 ? 'GSC' : 'RBY';
-  setStatus('complete', `${event.label} · OT ${event.otName} · ${gen}`);
+  const shown = trader?.delivered ?? event;
+  const gen = gameLabelForGeneration(eventGeneration(shown));
+  setStatus('complete', `${shown.label} · OT ${shown.otName} · ${gen}`);
   lockPickers(false);
-  if (trainerId != null) {
-    showIssuedCertificate(event, trainerId);
-  }
+  if (trainerId != null) showIssuedCertificate(shown, trainerId);
 }
 
 function populateDistributionPicker() {
@@ -251,12 +356,19 @@ function populateDistributionPicker() {
 
     const art = document.createElement('span');
     art.className = 'distribution-option-art';
-    const img = document.createElement('img');
-    img.className = 'distribution-option-sprite';
-    img.src = line.sprite;
-    img.alt = '';
-    img.decoding = 'async';
-    art.append(img);
+    if (line.sprite) {
+      const img = document.createElement('img');
+      img.className = 'distribution-option-sprite';
+      img.src = line.sprite;
+      img.alt = '';
+      img.decoding = 'async';
+      art.append(img);
+    } else {
+      const mark = document.createElement('span');
+      mark.className = 'distribution-option-mark';
+      mark.textContent = line.mark ?? 'GBA';
+      art.append(mark);
+    }
 
     const title = document.createElement('span');
     title.className = 'distribution-option-title';
@@ -278,6 +390,7 @@ function populateEventSelect() {
 
   if (events.length === 0) {
     selectedEventId = '';
+    refreshEventPossibilities();
     return;
   }
 
@@ -293,7 +406,7 @@ function populateEventSelect() {
     for (const ev of regionEvents) {
       const opt = document.createElement('option');
       opt.value = ev.id;
-      opt.textContent = ev.label.replace(REGION_PREFIX_RE, '');
+      opt.textContent = eventOptionLabel(ev);
       grp.appendChild(opt);
     }
     eventSelect.appendChild(grp);
@@ -303,10 +416,25 @@ function populateEventSelect() {
     selectedEventId = events[0].id;
   }
   eventSelect.value = selectedEventId;
+  refreshEventPossibilities();
+}
+
+function refreshEventPossibilities() {
+  const names = variantNames(getSelectedEvent() ?? {});
+  if (names.length < 2) {
+    eventPossibilities.textContent = '';
+    eventPossibilities.classList.add('hidden');
+    return;
+  }
+  eventPossibilities.textContent = `Could be ${formatNameList(names)}.`;
+  eventPossibilities.classList.remove('hidden');
 }
 
 function lockPickers(locked) {
   for (const input of distributionPicker.querySelectorAll('input[type="radio"]')) {
+    input.disabled = locked;
+  }
+  for (const input of methodPicker.querySelectorAll('input[type="radio"]')) {
     input.disabled = locked;
   }
   eventSelect.disabled = locked;
@@ -328,6 +456,10 @@ function onDistributionLineChange(lineId) {
 
   selectedLineId = lineId;
   applyDistributionTheme(line.theme);
+  methodPicker.classList.toggle('hidden', line.generation !== 3);
+  selectedMethod = readSelectedMethod();
+  connectBtn.textContent = line.generation === 3 ? 'Connect Game Boy Advance' : 'Connect Game Boy';
+  applyStepperMode();
   setWorkflowVisible(true);
   populateEventSelect();
   trader = null;
@@ -347,16 +479,15 @@ function ensureTrader() {
   const phaseHandler = {
     onPhaseChange: (phase) => {
       if (!gblink.isConnected()) return;
-      if (currentPhase === 'complete') return;
 
       const ev = getSelectedEvent();
-      const genNum = eventGeneration(ev);
-      const gen = genNum === 2 ? 'GSC' : 'RBY';
-      const detail = `${ev.label} · OT ${ev.otName} · ${gen}`;
+      const detail = statusDetailFor(ev, trader);
 
       if (phase === 'post_trade_party') {
-        finishTradeComplete(ev, trader?.tid);
-        if (trader) trader.uiPhase = 'complete';
+        if (currentPhase !== 'complete') {
+          finishTradeComplete(ev, trader?.tid);
+          if (trader) trader.uiPhase = 'complete';
+        }
         return;
       }
 
@@ -376,12 +507,17 @@ function ensureTrader() {
         lockPickers(true);
       }
     },
+    onPartnerGame: () => {
+      if (!gblink.isConnected() || !trader) return;
+      setStatus(currentPhase, statusDetailFor(getSelectedEvent(), trader));
+    },
   };
 
   if (!trader || eventGeneration(event) !== eventGeneration(trader.event ?? event)) {
     trader = createTrader(event, phaseHandler);
   } else {
     trader.setEvent(event);
+    trader.opts = { ...trader.opts, ...phaseHandler };
   }
   return trader;
 }
@@ -445,19 +581,48 @@ async function onConnect() {
     setStatus('connecting');
     connectBtn.disabled = true;
     await gblink.connect();
+    disconnectBtn.disabled = false;
+    const ev = getSelectedEvent();
+    const gen = gameLabelForGeneration(eventGeneration(ev));
+    if (eventGeneration(ev) === 3 && selectedMethod === 'multiboot') {
+      await runMultiboot(ev);
+      return;
+    }
+    if (eventGeneration(ev) === 3) {
+      trader = null;
+      const t = ensureTrader();
+      t.reset();
+      setStatus('connected', `${ev.label} · ${gen}`);
+      await t.run();
+      return;
+    }
     trader = null;
     ensureTrader();
     trader.reset();
-    disconnectBtn.disabled = false;
-    const ev = getSelectedEvent();
-    const gen = eventGeneration(ev) === 2 ? 'GSC' : 'RBY';
     setStatus('connected', `${ev.label} · ${gen}`);
     pollLoop();
   } catch (err) {
     lockPickers(false);
     connectBtn.disabled = false;
-    setStatus('error', err instanceof Error ? err.message : String(err));
+    if (gblink.isConnected()) {
+      setStatus('error', err instanceof Error ? err.message : String(err));
+    } else if (currentPhase !== 'disconnected') {
+      setStatus('error', err instanceof Error ? err.message : String(err));
+    }
   }
+}
+
+async function runMultiboot(event) {
+  setStatus('connected', `${event.label} · multiboot`);
+  const client = await loadClient(event.client);
+  setStatus('sending', event.label);
+  await sendMultiboot(client, (message) => {
+    if (message.endsWith('%')) detailText.textContent = message;
+  });
+  setStatus('receiving', event.label);
+  await sleep(1500);
+  const tid = event.tidMode === 'fixed' ? event.tid : null;
+  finishTradeComplete(event, tid);
 }
 
 async function onDisconnect() {
@@ -474,8 +639,19 @@ distributionPicker.addEventListener('change', (e) => {
   onDistributionLineChange(target.value);
 });
 
+methodPicker.addEventListener('change', (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLInputElement) || target.name !== 'gen3-method' || !target.checked) return;
+  selectedMethod = target.value;
+  applyStepperMode();
+  if (!polling && gblink.isConnected() === false) {
+    setStatus('idle', `${selectedLine()?.label ?? 'Gen 3'} · ${gameLabelForGeneration(3)}`);
+  }
+});
+
 eventSelect.addEventListener('change', () => {
   selectedEventId = eventSelect.value;
+  refreshEventPossibilities();
   if (trader && !polling) {
     trader.setEvent(getSelectedEvent());
   }
@@ -523,6 +699,7 @@ try {
 }
 
 populateDistributionPicker();
+selectedMethod = readSelectedMethod();
 setWorkflowVisible(false);
 
 if (!gblink.isTransportAvailable()) {

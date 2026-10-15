@@ -58,8 +58,9 @@ Stat encoding, IV packing, and trade packet layout are handled automatically.
 
 ## Credits
 
-- [PokeAPI](https://pokeapi.co/) — Pokémon sprites in the distribution catalog and trade certificate
+- [PokeAPI](https://pokeapi.co/) — Pokémon Home sprites bundled for the distribution catalog and trade certificate
 - [risingPhil/PokeMe64](https://github.com/risingPhil/PokeMe64) — reference data for historical distribution event Pokémon
 - [GrenderG/mewdistro](https://github.com/GrenderG/mewdistro) — Gen 1 party block layout and Mew distribution trade flow
 - [GrenderG/celebidistro](https://github.com/GrenderG/celebidistro) — Gen 2 Celebi distribution trade flow and party data layout
 - [Lorenzooone/PokemonGB_Online_Trades](https://github.com/Lorenzooone/PokemonGB_Online_Trades) — Cable Club link protocol and automated Trade Center entry
+- [pret/pokeruby](https://github.com/pret/pokeruby), [pret/pokeemerald](https://github.com/pret/pokeemerald), [pret/pokefirered](https://github.com/pret/pokefirered) — Gen 3 Cable Club and trade protocol reference

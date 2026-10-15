@@ -23,36 +23,65 @@
       </section>
 
       <div id="workflow" class="hidden">
+        <fieldset class="method-picker hidden" id="method-picker">
+          <legend>Delivery mode</legend>
+          <div class="method-options">
+            <label class="method-option">
+              <input type="radio" name="gen3-method" value="multiboot" />
+              <span>Multiboot</span>
+            </label>
+            <label class="method-option">
+              <input type="radio" name="gen3-method" value="trade" checked />
+              <span>Trade</span>
+            </label>
+          </div>
+          <div id="method-source" class="method-source hidden">
+            <p>Your Game Boy Advance receives the Pokémon. Leave the game cartridge in the whole time.</p>
+            <ol>
+              <li>Save in a Pokémon Center.</li>
+              <li>Leave at least one empty space in your party.</li>
+              <li>Turn the Game Boy Advance off. Keep the cartridge inserted.</li>
+              <li>Connect the adapter, then hold Start and Select while turning the Game Boy Advance back on.</li>
+              <li>When the Pokémon’s sprite appears, it is already saved on that cartridge.</li>
+            </ol>
+            <p class="method-source-credit">
+              Multiboot Source:
+              <a href="https://github.com/Goppier/GEN3PokemonDistributions" target="_blank" rel="noopener">Goppier/GEN3PokemonDistributions</a>
+            </p>
+          </div>
+        </fieldset>
+
         <section class="panel" id="event-panel">
           <label for="event-select">Distribution event</label>
           <select id="event-select" aria-label="Select distribution event"></select>
+          <p id="event-possibilities" class="event-possibilities hidden"></p>
         </section>
 
         <section class="status-panel">
           <div class="stepper" id="stepper">
             <div class="stepper-step" data-step="connect">
               <div class="step-node"></div>
-              <span>Connect</span>
+              <span class="step-label" data-trade="Connect" data-boot="Connect">Connect</span>
             </div>
             <div class="stepper-line"></div>
             <div class="stepper-step" data-step="cable-club">
               <div class="step-node"></div>
-              <span>Cable Club</span>
+              <span class="step-label" data-trade="Cable Club" data-boot="Send">Cable Club</span>
             </div>
             <div class="stepper-line"></div>
             <div class="stepper-step" data-step="trade-center">
               <div class="step-node"></div>
-              <span>Trade Center</span>
+              <span class="step-label" data-trade="Trade Center" data-boot="Receive">Trade Center</span>
             </div>
-            <div class="stepper-line"></div>
-            <div class="stepper-step" data-step="trade">
+            <div class="stepper-line" data-boot-hide="line"></div>
+            <div class="stepper-step" data-step="trade" data-boot-hide="step">
               <div class="step-node"></div>
-              <span>Trade</span>
+              <span class="step-label" data-trade="Trade" data-boot="Trade">Trade</span>
             </div>
             <div class="stepper-line"></div>
             <div class="stepper-step" data-step="done">
               <div class="step-node"></div>
-              <span>Done</span>
+              <span class="step-label" data-trade="Done" data-boot="Done">Done</span>
             </div>
           </div>
 

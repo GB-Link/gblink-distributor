@@ -1,13 +1,5 @@
 import { saveCertificateImage } from './certificate_export.js';
-import mewSprite from '../assets/sprites/mew.png';
-import pikachuSprite from '../assets/sprites/pikachu.png';
-import celebiSprite from '../assets/sprites/celebi.png';
-
-const SPECIES_SPRITES = {
-  MEW: mewSprite,
-  PIKACHU: pikachuSprite,
-  CELEBI: celebiSprite,
-};
+import { speciesSpriteUrl } from '../assets/species_sprites.js';
 
 function speciesThemeFor(speciesKey) {
   const k = speciesKey.toUpperCase();
@@ -28,7 +20,9 @@ function formatCertificateTrainerId(tid) {
 }
 
 export function issuedForTrade(event, trainerId) {
-  const shortLabel = event.label.replace(/^(USA|Canada|USA\/Canada|Australia|UK\/Ireland|UK|Europe|Mexico)\s*—\s*/, '');
+  const shortLabel = event.label
+    .replace(/^(USA|Canada|USA\/Canada|Australia|UK\/Ireland|UK|Europe|Mexico)\s*—\s*/, '')
+    .replace(/^English\s*—\s*/, '');
   return {
     species: event.species,
     speciesTheme: speciesThemeFor(event.species),
@@ -70,6 +64,33 @@ function createTitleTextPath(arcId, label) {
   textPath.setAttribute('text-anchor', 'middle');
   textPath.textContent = label;
   return textPath;
+}
+
+function createSpeciesSprite(src, species) {
+  const sprite = document.createElement('img');
+  sprite.className = 'certificate-species-sprite';
+  sprite.alt = formatSpeciesName(species);
+  sprite.decoding = 'async';
+  sprite.src = src;
+  return sprite;
+}
+
+function createSpeciesName(species) {
+  const speciesDisplay = document.createElement('p');
+  speciesDisplay.className = 'certificate-species-display';
+  speciesDisplay.textContent = formatSpeciesName(species);
+  return speciesDisplay;
+}
+
+function mountSpeciesArt(artSpace, data) {
+  const bundled = speciesSpriteUrl(data.species);
+  if (!bundled) {
+    artSpace.append(createSpeciesName(data.species));
+    return Promise.resolve();
+  }
+  const sprite = createSpeciesSprite(bundled, data.species);
+  artSpace.append(sprite);
+  return sprite.decode?.().catch(() => {}) ?? Promise.resolve();
 }
 
 function createArcTitle() {
@@ -157,21 +178,8 @@ export function renderCertificate(container, data) {
   brandMark.setAttribute('aria-hidden', 'true');
   brandMark.textContent = 'GB-Link';
 
-  const speciesKey = data.species?.toUpperCase() ?? '';
-  const spriteSrc = SPECIES_SPRITES[speciesKey];
-  if (spriteSrc) {
-    const sprite = document.createElement('img');
-    sprite.className = 'certificate-species-sprite';
-    sprite.src = spriteSrc;
-    sprite.alt = formatSpeciesName(data.species);
-    sprite.decoding = 'async';
-    artSpace.append(brandMark, sprite);
-  } else {
-    const speciesDisplay = document.createElement('p');
-    speciesDisplay.className = 'certificate-species-display';
-    speciesDisplay.textContent = formatSpeciesName(data.species);
-    artSpace.append(brandMark, speciesDisplay);
-  }
+  artSpace.append(brandMark);
+  const artReady = mountSpeciesArt(artSpace, data);
 
   const idLine = document.createElement('p');
   idLine.className = 'certificate-id-line';
@@ -223,6 +231,7 @@ export function renderCertificate(container, data) {
     const label = saveBtn.textContent;
     saveBtn.textContent = 'Downloading…';
     try {
+      await artReady;
       await saveCertificateImage(frame, data);
     } catch (err) {
       saveBtn.textContent = 'Download failed — retry';

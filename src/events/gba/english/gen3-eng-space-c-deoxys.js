@@ -1,0 +1,56 @@
+export default {
+  "id": "gen3-eng-space-c-deoxys",
+  "label": "SPACEC Deoxys",
+  "generation": 3,
+  "otName": "SPACEC",
+  "nickname": "DEOXYS",
+  "species": "DEOXYS",
+  "speciesId": 410,
+  "level": 10,
+  "shinyLocked": true,
+  "tidMode": "random",
+  "tid": null,
+  "client": "gba/gen3-eng-space-c-deoxys.bin",
+  "variants": [
+    {
+      "species": "DEOXYS",
+      "speciesId": 410,
+      "speciesLabel": "Deoxys",
+      "nickname": "DEOXYS",
+      "otName": "SPACEC",
+      "level": 10,
+      "moves": [
+        43,
+        35,
+        101,
+        104
+      ],
+      "movePp": [
+        30,
+        20,
+        15,
+        15
+      ],
+      "heldItem": 0,
+      "shinyLocked": true,
+      "tid": null,
+      "sid": 0,
+      "fateful": true,
+      "isEgg": false,
+      "metLocation": 255,
+      "ball": 4,
+      "language": 2,
+      "base": {
+        "hp": 50,
+        "atk": 150,
+        "def": 50,
+        "spe": 150,
+        "spa": 150,
+        "spd": 50,
+        "growth": 3,
+        "friendship": 70,
+        "genderRatio": 255
+      }
+    }
+  ]
+};

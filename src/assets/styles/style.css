@@ -21,6 +21,8 @@
   --pikachu-accent-hover: #ffe566;
   --celebi-accent:    #7ac74c;
   --celebi-accent-hover: #9dde62;
+  --gen3-accent:      #7eb6ff;
+  --gen3-accent-hover: #a9ceff;
 
   --radius: 10px;
 }
@@ -50,6 +52,15 @@
   --surface-hi:   #182319;
   --border:       #263329;
   --border-hi:    #344538;
+}
+
+.app[data-theme='gen3'] {
+  --accent:       var(--gen3-accent);
+  --accent-hover: var(--gen3-accent-hover);
+  --surface:      #10141c;
+  --surface-hi:   #161c28;
+  --border:       #243044;
+  --border-hi:    #34506a;
 }
 
 * { box-sizing: border-box; }
@@ -153,6 +164,19 @@ header h1 {
   object-fit: contain;
 }
 
+.distribution-option-mark {
+  display: grid;
+  place-items: center;
+  width: 5.25rem;
+  height: 5.25rem;
+  border-radius: 1.1rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--gen3-accent);
+  background: color-mix(in srgb, var(--gen3-accent) 16%, transparent);
+}
+
 .distribution-option-body {
   display: flex;
   flex-direction: column;
@@ -224,6 +248,114 @@ header h1 {
               0 4px 16px color-mix(in srgb, var(--celebi-accent) 12%, transparent);
 }
 
+.distribution-option[data-line-theme='gen3'] input:checked + .distribution-option-body .distribution-option-title {
+  color: color-mix(in srgb, var(--gen3-accent) 65%, var(--text));
+}
+
+.distribution-option[data-line-theme='gen3'] input:checked + .distribution-option-body {
+  border-color: var(--gen3-accent);
+  background: color-mix(in srgb, var(--gen3-accent) 10%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gen3-accent) 30%, transparent),
+              0 4px 16px color-mix(in srgb, var(--gen3-accent) 12%, transparent);
+}
+
+.method-picker {
+  margin: 1.25rem 0 1rem;
+  padding: 0;
+  border: none;
+}
+
+.method-picker legend {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.7rem;
+  padding: 0;
+}
+
+.method-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.method-options:has(.method-option.hidden) {
+  grid-template-columns: 1fr;
+}
+
+.method-option {
+  display: block;
+  cursor: pointer;
+}
+
+.method-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.method-option span {
+  display: block;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.method-option input:checked + span {
+  border-color: var(--gen3-accent);
+  color: color-mix(in srgb, var(--gen3-accent) 70%, var(--text));
+  background: color-mix(in srgb, var(--gen3-accent) 12%, var(--surface));
+}
+
+.method-option input:disabled + span {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.method-source {
+  margin: 0.85rem 0 0;
+  padding: 0.95rem 1.05rem 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+  background: color-mix(in srgb, var(--gen3-accent) 10%, var(--surface));
+  border: 1.5px solid color-mix(in srgb, var(--gen3-accent) 32%, var(--border));
+  border-radius: var(--radius);
+}
+
+.method-source p {
+  margin: 0;
+}
+
+.method-source ol {
+  margin: 0.55rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.method-source li + li {
+  margin-top: 0.3rem;
+}
+
+.method-source a {
+  color: var(--text);
+}
+
+.method-source .method-source-credit {
+  margin-top: 0.35rem;
+  padding-top: 1.15rem;
+  color: var(--muted);
+}
+
+.stepper[data-method='multiboot'] [data-boot-hide] {
+  display: none;
+}
+
 .distribution-option input:focus-visible + .distribution-option-body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -277,6 +409,13 @@ header h1 {
 
 #event-select:disabled {
   opacity: 0.5;
+}
+
+.event-possibilities {
+  margin: 0.65rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 .status-panel {

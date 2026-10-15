@@ -1,6 +1,4 @@
-import mewSprite from '../assets/sprites/mew.png';
-import pikachuSprite from '../assets/sprites/pikachu.png';
-import celebiSprite from '../assets/sprites/celebi.png';
+import { speciesSpriteUrl } from '../assets/species_sprites.js';
 
 export const DISTRIBUTION_LINES = [
   {
@@ -10,7 +8,7 @@ export const DISTRIBUTION_LINES = [
     label: 'Mew',
     hint: 'Gen 1 · Red / Blue / Yellow',
     theme: 'mew',
-    sprite: mewSprite,
+    sprite: speciesSpriteUrl('MEW'),
   },
   {
     id: 'gen1-surfing-pikachu',
@@ -19,7 +17,7 @@ export const DISTRIBUTION_LINES = [
     label: 'Surfing Pikachu',
     hint: 'Gen 1 · Red / Blue / Yellow',
     theme: 'pikachu',
-    sprite: pikachuSprite,
+    sprite: speciesSpriteUrl('PIKACHU'),
   },
   {
     id: 'gen2-celebi',
@@ -28,7 +26,16 @@ export const DISTRIBUTION_LINES = [
     label: 'Celebi',
     hint: 'Gen 2 · Gold / Silver / Crystal',
     theme: 'celebi',
-    sprite: celebiSprite,
+    sprite: speciesSpriteUrl('CELEBI'),
+  },
+  {
+    id: 'gen3-english',
+    generation: 3,
+    label: 'Gen 3',
+    hint: 'Gen 3 · Ruby / Sapphire / Emerald / FireRed / LeafGreen',
+    theme: 'gen3',
+    sprite: null,
+    mark: 'GBA',
   },
 ];
 
