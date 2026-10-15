@@ -63,3 +63,5 @@ Stat encoding, IV packing, and trade packet layout are handled automatically.
 - [GrenderG/celebidistro](https://github.com/GrenderG/celebidistro) — Gen 2 Celebi distribution trade flow and party data layout
 - [Lorenzooone/PokemonGB_Online_Trades](https://github.com/Lorenzooone/PokemonGB_Online_Trades) — Cable Club link protocol and automated Trade Center entry
 - [pret/pokeruby](https://github.com/pret/pokeruby), [pret/pokeemerald](https://github.com/pret/pokeemerald), [pret/pokefirered](https://github.com/pret/pokefirered) — Gen 3 Cable Club and trade protocol reference
+- [Goppier/GEN3PokemonDistributions](https://github.com/Goppier/GEN3PokemonDistributions) — Aura Mew–based Gen 3 distribution ROMs used for multiboot clients
+- [aestellic/AuraMewMultibootTool](https://github.com/aestellic/AuraMewMultibootTool) — multiboot extraction and standalone patches for those distribution ROMs
