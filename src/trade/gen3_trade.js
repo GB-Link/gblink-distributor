@@ -157,42 +157,6 @@ export class Gen3Trader {
   _phaseChange(phase) {
     this.uiPhase = phase;
     this.opts.onPhaseChange?.(phase);
-    console.info('[gen3] phase', phase, this.partnerGameName ?? '');
-  }
-
-  _traceStart() {
-    globalThis.gen3Trade = this;
-    this._traceCounts = {};
-    this._traceAt = Date.now();
-    this._traceBucketAt = Date.now();
-    this._traceBucketN = 0;
-    this._tracePeak = 0;
-    console.info('[gen3] debug on. Filter the console by [gen3]. Open the summary, then read the next phase line and the once-per-second count.');
-  }
-
-  _traceCmds(dir, groups) {
-    const now = Date.now();
-    if (now - this._traceBucketAt >= 16) {
-      if (this._traceBucketN > this._tracePeak) this._tracePeak = this._traceBucketN;
-      this._traceBucketAt = now;
-      this._traceBucketN = 0;
-    }
-    for (const words of groups) {
-      const label = labelCmd(words);
-      const key = `${dir} ${label}`;
-      this._traceCounts[key] = (this._traceCounts[key] || 0) + 1;
-      if (dir === 'out' && words?.[0]) {
-        this._traceBucketN += 1;
-        if (this._phase === 'negotiate' && words[0] !== LINK.SEND_HELD_KEYS) {
-          console.info('[gen3] negotiate out', label, 'ui', this.uiPhase, 'queued', this._queue.length);
-        }
-      }
-    }
-    if (now - this._traceAt < 1000) return;
-    console.info('[gen3]', this.partnerGameName, this.uiPhase, 'peak16', this._tracePeak, { ...this._traceCounts });
-    this._traceCounts = {};
-    this._tracePeak = 0;
-    this._traceAt = now;
   }
 
   _enqueue(words) {
@@ -847,7 +811,6 @@ export class Gen3Trader {
 
   async run() {
     this.reset();
-    this._traceStart();
     this._phaseChange('handshaking');
     await gblink.prepareGen3Trade();
     await this._waitForLink();
@@ -871,7 +834,6 @@ export class Gen3Trader {
             commandExchange(0),
             commandExchange(0),
           ];
-          this._traceCmds('out', closing);
           await gblink.writeData(packResponses(closing));
           continue;
         }
@@ -884,7 +846,6 @@ export class Gen3Trader {
           if (this._queue.length > 0 && (!statusBlock || this._canDrainStatusBlock())) {
             const pending = this._drainQueue();
             if (pending) {
-              this._traceCmds('out', pending);
               await gblink.writeData(packResponses(pending));
             }
           } else {
@@ -895,7 +856,6 @@ export class Gen3Trader {
               commandExchange(0),
               commandExchange(0),
             ];
-            this._traceCmds('out', idle);
             await gblink.writeData(packResponses(idle));
           }
           continue;
@@ -905,14 +865,11 @@ export class Gen3Trader {
         continue;
       }
       const responses = [];
-      const incomingGroups = [];
       this._nonzeroThisPacket = 0;
       for (let i = 0; i < 4; i++) {
         const incoming = bytesToWords(packet, i * 16);
-        incomingGroups.push(incoming);
         responses.push(this._nextResponse(incoming));
       }
-      this._traceCmds('in', incomingGroups);
       if (this._wantsCloseEcho()) {
         if (!responses[0][0]) responses[0] = this._nextCloseLinkReply();
       } else if (this._phase === 'negotiate' && !this._exitCancel) {
@@ -922,7 +879,6 @@ export class Gen3Trader {
           responses[0] = this._linkBeat();
         }
       }
-      this._traceCmds('out', responses);
       await gblink.writeData(packResponses(responses));
       this._armOffer();
       if (this._phase === 'negotiate' && this._queue.length > 0 && !this._closing && !this._exitCancel) {
@@ -933,7 +889,6 @@ export class Gen3Trader {
         } else if (!statusBlock || this._canDrainStatusBlock()) {
           const pending = this._drainQueue();
           if (pending) {
-            this._traceCmds('out', pending);
             await gblink.writeData(packResponses(pending));
           }
         }
@@ -1054,14 +1009,6 @@ export class Gen3Trader {
     throw new Error('The Game Boy Advance did not finish the link handshake.');
   }
 }
-
-function labelCmd(words) {
-  if (!words?.[0]) return '0';
-  const name = CMD_LABEL[words[0]] || words[0].toString(16);
-  return words[1] ? `${name}:${words[1].toString(16)}` : name;
-}
-
-const CMD_LABEL = Object.fromEntries(Object.entries(LINK).map(([name, value]) => [value, name]));
 
 function commandBytes(cmd, arg) {
   const out = new Uint8Array(4);
