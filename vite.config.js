@@ -1,17 +1,10 @@
 import path from 'path';
 import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
-import { extractGen3English } from './scripts/extract-gen3-english.mjs';
 import { generateEventsRegistry } from './scripts/generate-events-registry.mjs';
 
 function eventsRegistryPlugin() {
   let root;
-
-  async function syncEvents() {
-    await extractGen3English(root);
-    await generateEventsRegistry(root);
-  }
-
   let regenTimer;
 
   function scheduleRegen(server) {
@@ -39,7 +32,7 @@ function eventsRegistryPlugin() {
       root = config.root;
     },
     async buildStart() {
-      await syncEvents();
+      await generateEventsRegistry(root);
     },
     configureServer(server) {
       const onEventChange = (file) => {

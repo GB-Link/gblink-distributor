@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "events:sync": "node scripts/extract-gen3-english.mjs && node scripts/generate-events-registry.mjs"
+    "events:sync": "node scripts/generate-events-registry.mjs"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.0.0",

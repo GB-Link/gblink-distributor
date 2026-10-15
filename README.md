@@ -1,6 +1,6 @@
 # GB-Link Distributor
 
-Trade any Pokémon from your party for a historical event Pokémon on a real Game Boy (Pokémon Red, Blue, Yellow, Gold, Silver, or Crystal), over a link cable and a [GB-Link USB adapter](https://gblink.io).
+Trade any Pokémon from your party for a historical event Pokémon on a real Game Boy (Pokémon Red, Blue, Yellow, Gold, Silver, Crystal, Ruby, Sapphire, Emerald, FireRed, or LeafGreen), over a link cable and a [GB-Link USB adapter](https://gblink.io).
 
 Nothing is injected into your save file — the event Pokémon arrives through a normal in-game trade at the Cable Club.
 
@@ -11,7 +11,7 @@ Nothing is injected into your save file — the event Pokémon arrives through a
 - Chrome or Edge (WebUSB), or Firefox 151+ (WebSerial)
 - [GB-Link USB adapter](https://gblink.io)
 - Game Boy link cable
-- Pokémon Red, Blue, Yellow, Gold, Silver, or Crystal cartridge
+- Pokémon Red, Blue, Yellow, Gold, Silver, Crystal, Ruby, Sapphire, Emerald, FireRed, or LeafGreen cartridge
 
 ## Run
 
@@ -54,7 +54,6 @@ Stat encoding, IV packing, and trade packet layout are handled automatically.
 
 - Localized game support (Japan first; other regions TBD)
 - Gen 2 Time Capsule support
-- Gen 3 Pokémon event distributions
 
 ## Credits
 
