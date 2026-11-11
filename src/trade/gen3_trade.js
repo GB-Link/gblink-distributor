@@ -14,6 +14,13 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// A data packet holds three commands, each a seat byte and 8 words. The Game
+// Boy Advance hosts the link in seat 0, which leaves seat 1 to the trader.
+const PACKET_COMMANDS = 3;
+const COMMAND_BYTES = 17;
+const PACKET_BYTES = PACKET_COMMANDS * COMMAND_BYTES;
+const TRADER_SEAT = 1;
+
 const HANDSHAKE_WORD = new Set([0xb9a0, 0x8fff, 0xd15e]);
 const CLOSE_CANCEL = 12;
 const CLOSE_START_TRADE = 32;
@@ -172,7 +179,7 @@ export class Gen3Trader {
   _drainQueue() {
     if (this._queue.length === 0) return null;
     const responses = [];
-    for (let i = 0; i < 4; i++) responses.push(this._queue.shift() ?? commandExchange(0));
+    for (let i = 0; i < PACKET_COMMANDS; i++) responses.push(this._queue.shift() ?? commandExchange(0));
     return responses;
   }
 
@@ -819,8 +826,8 @@ export class Gen3Trader {
     await this._announceLink();
     while (gblink.isConnected() && this._phase !== 'done') {
       if (await this._recoverHandshake()) continue;
-      const packet = await gblink.readData(64, 50);
-      if (!packet || packet.length < 64) {
+      const packet = await gblink.readData(PACKET_BYTES, 50);
+      if (!packet || packet.length < PACKET_BYTES) {
         if (!gblink.isConnected()) break;
         if (this._queue.length === 0) {
           this._beginSeatStep();
@@ -828,13 +835,7 @@ export class Gen3Trader {
           this._armOffer();
         }
         if (this._wantsCloseEcho()) {
-          const closing = [
-            this._nextCloseLinkReply(),
-            commandExchange(0),
-            commandExchange(0),
-            commandExchange(0),
-          ];
-          await gblink.writeData(packResponses(closing));
+          await gblink.writeData(packResponses([this._nextCloseLinkReply()]));
           continue;
         }
         if (this._phase === 'negotiate') {
@@ -849,14 +850,7 @@ export class Gen3Trader {
               await gblink.writeData(packResponses(pending));
             }
           } else {
-            const beat = this._linkBeat();
-            const idle = [
-              beat,
-              commandExchange(0),
-              commandExchange(0),
-              commandExchange(0),
-            ];
-            await gblink.writeData(packResponses(idle));
+            await gblink.writeData(packResponses([this._linkBeat()]));
           }
           continue;
         }
@@ -866,8 +860,8 @@ export class Gen3Trader {
       }
       const responses = [];
       this._nonzeroThisPacket = 0;
-      for (let i = 0; i < 4; i++) {
-        const incoming = bytesToWords(packet, i * 16);
+      for (let i = 0; i < PACKET_COMMANDS; i++) {
+        const incoming = bytesToWords(packet, i * COMMAND_BYTES + 1);
         responses.push(this._nextResponse(incoming));
       }
       if (this._wantsCloseEcho()) {
@@ -996,7 +990,7 @@ export class Gen3Trader {
 
   async _announceLink() {
     const linkType = commandExchange(LINK.SEND_LINK_TYPE, this._linkType);
-    await gblink.writeData(packResponses([linkType, linkType, linkType, linkType]));
+    await gblink.writeData(packResponses([linkType, linkType, linkType]));
   }
 
   async _waitForLink() {
@@ -1020,12 +1014,14 @@ function commandBytes(cmd, arg) {
 }
 
 function packResponses(list) {
-  const out = new Uint8Array(64);
-  for (let i = 0; i < 4; i++) {
+  const out = new Uint8Array(PACKET_BYTES);
+  for (let i = 0; i < PACKET_COMMANDS; i++) {
     const words = list[i] ?? commandExchange(0);
+    const at = i * COMMAND_BYTES;
+    out[at] = TRADER_SEAT;
     for (let w = 0; w < 8; w++) {
-      out[i * 16 + w * 2] = words[w] & 0xff;
-      out[i * 16 + w * 2 + 1] = (words[w] >> 8) & 0xff;
+      out[at + 1 + w * 2] = words[w] & 0xff;
+      out[at + 2 + w * 2] = (words[w] >> 8) & 0xff;
     }
   }
   return out;

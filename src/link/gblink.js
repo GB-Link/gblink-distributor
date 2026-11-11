@@ -2,9 +2,13 @@ const USB_FILTERS = [
   { vendorId: 0x239a },
   { vendorId: 0xcafe },
   { vendorId: 0x2fe3 },
+  { vendorId: 0x1209, productId: 0xb011 },
 ];
 
-const SERIAL_FILTERS = [{ usbVendorId: 0x2fe3 }];
+const SERIAL_FILTERS = [
+  { usbVendorId: 0x2fe3 },
+  { usbVendorId: 0x1209, usbProductId: 0xb011 },
+];
 
 const VSWITCH_PREFIX = new Uint8Array([
   0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe,
@@ -22,6 +26,8 @@ const SERIAL_MAX_PAYLOAD = 64;
 
 const GBL_CMD = {
   SET_MODE: 0x00,
+  GET_FIRMWARE_INFO: 0x0f,
+  SET_PLAYER_SETTINGS: 0x10,
   SET_TIMING_CONFIG: 0x30,
   SET_VOLTAGE_3V3: 0x40,
   SET_VOLTAGE_5V: 0x41,
@@ -40,7 +46,6 @@ function buildVswitchPacket(suffix) {
 }
 
 const VSWITCH_5V_PACKET = buildVswitchPacket('V5V0');
-const VSWITCH_3V3_PACKET = buildVswitchPacket('V3V3');
 
 function fwVersionAtLeast(device, major, minor, patch) {
   const dMaj = device.deviceVersionMajor ?? 0;
@@ -142,7 +147,9 @@ async function connectUsb() {
 
   await device.selectConfiguration(1);
 
-  const isNewFirmware = device.vendorId === 0x2fe3;
+  // 0x1209 is a shared vendor ID, so it only counts with the product ID.
+  const isNewFirmware = device.vendorId === 0x2fe3
+    || (device.vendorId === 0x1209 && device.productId === 0xb011);
 
   let ifNum = 0;
   let epIn = 1;
@@ -503,84 +510,70 @@ export async function setMode(mode) {
 }
 
 export async function setVoltage(mode) {
-  if (!active) throw new Error('GB-Link not connected.');
-  if (active.isNewFirmware) {
-    const cmd = mode === '5v' ? GBL_CMD.SET_VOLTAGE_5V : GBL_CMD.SET_VOLTAGE_3V3;
-    await sendCommandBytes([cmd]);
-    return;
-  }
-  if (!fwVersionAtLeast(active.device, 1, 0, 6)) return;
-  const packet = mode === '5v' ? VSWITCH_5V_PACKET : VSWITCH_3V3_PACKET;
-  await active.device.transferOut(active.epOut, packet);
-  try {
-    await Promise.race([
-      active.device.transferIn(active.epIn, 64),
-      delay(500).then(() => null),
-    ]);
-  } catch { }
+  const cmd = mode === '5v' ? GBL_CMD.SET_VOLTAGE_5V : GBL_CMD.SET_VOLTAGE_3V3;
+  await sendCommandBytes([cmd]);
 }
 
 export async function setTimingConfig(usBetweenTransfer, bytesPerTransfer) {
-  if (!active) throw new Error('GB-Link not connected.');
-  if (active.isNewFirmware) {
-    await sendCommandBytes([
-      GBL_CMD.SET_TIMING_CONFIG,
-      usBetweenTransfer & 0xff,
-      (usBetweenTransfer >> 8) & 0xff,
-      (usBetweenTransfer >> 16) & 0xff,
-      bytesPerTransfer & 0xff,
-    ]);
-    return;
+  await sendCommandBytes([
+    GBL_CMD.SET_TIMING_CONFIG,
+    usBetweenTransfer & 0xff,
+    (usBetweenTransfer >> 8) & 0xff,
+    (usBetweenTransfer >> 16) & 0xff,
+    bytesPerTransfer & 0xff,
+  ]);
+}
+
+// The adapter answers on the data channel: the command byte, then major,
+// minor and patch. Data left over from an earlier session may come first.
+// Adapters that never answer are older still.
+async function readFirmwareVersion(conn) {
+  if (!conn.isNewFirmware) return null;
+  await sendCommandBytes([GBL_CMD.GET_FIRMWARE_INFO]);
+  const deadline = Date.now() + 1000;
+  for (let left = 1000; left > 0 && active === conn; left = deadline - Date.now()) {
+    const reply = await readData(64, left);
+    if (reply?.length >= 4 && reply[0] === GBL_CMD.GET_FIRMWARE_INFO) {
+      return [reply[1], reply[2], reply[3]];
+    }
   }
-  const config = new Uint8Array(36);
-  config.set(VSWITCH_PREFIX);
-  config[32] = usBetweenTransfer & 0xff;
-  config[33] = (usBetweenTransfer >> 8) & 0xff;
-  config[34] = (usBetweenTransfer >> 16) & 0xff;
-  config[35] = bytesPerTransfer & 0xff;
-  await active.device.transferOut(active.epOut, config);
+  return null;
+}
+
+// Game Boy Advance trades and multiboot are only supported from firmware 3.0.0.
+async function requireGbaFirmware() {
+  if (!active) throw new Error('GB-Link not connected.');
+  const conn = active;
+  if (conn.firmware === undefined) conn.firmware = await readFirmwareVersion(conn);
+  if (!conn.firmware || conn.firmware[0] < 3) {
+    throw new Error(
+      'Game Boy Advance trades and distributions need adapter firmware 3.0.0 or newer. '
+      + 'Update the adapter\'s firmware at launcher.gblink.io, then connect again.',
+    );
+  }
 }
 
 export async function prepareMultiboot() {
-  if (!active) throw new Error('GB-Link not connected.');
+  await requireGbaFirmware();
   await setVoltage('3v3');
-  if (active.isNewFirmware) {
-    await setMode(GBL_MODE.GB_LINK);
-    await delay(100);
-  }
+  await setMode(GBL_MODE.GB_LINK);
+  await delay(100);
   await setTimingConfig(36, 4);
-  if (!active.isNewFirmware) await drainData();
 }
 
 export async function prepareGen3Trade() {
-  if (!active) throw new Error('GB-Link not connected.');
-  if (!active.isNewFirmware) {
-    throw new Error('Cable Club trade needs a GB-Link adapter with current firmware.');
-  }
+  await requireGbaFirmware();
   clearPendingStatus();
   clearPendingDataRead();
   await setVoltage('3v3');
   await setMode(GBL_MODE.GBA_LINK);
   await delay(100);
-  // The Game Boy clocks the cable. It only counts a partner that is already
-  // sending the slave handshake when the attendant opens the link.
-  await sendCommandBytes([0x11]);
+  // Two players, the Game Boy Advance in seat 0: it hosts the link and clocks
+  // the cable. It only counts a partner that is already sending the slave
+  // handshake when the attendant opens the link.
+  await sendCommandBytes([GBL_CMD.SET_PLAYER_SETTINGS, 2, 0]);
   await delay(150);
   await sendCommandBytes([0x12]);
-}
-
-async function drainData() {
-  const until = Date.now() + 80;
-  while (Date.now() < until && active?.kind === 'usb') {
-    try {
-      await Promise.race([
-        active.device.transferIn(active.epIn, 64),
-        delay(15).then(() => null),
-      ]);
-    } catch {
-      break;
-    }
-  }
 }
 
 export async function writeData(bytes) {
